@@ -1,11 +1,64 @@
+# Copyright 2017 Google Inc. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Build Python runtime image and flex builder pipeline
+#
+# The following variables should be set
+#   DOCKER_NAMESPACE:
+#     The prefix for all docker image names
+#     Example: gcr.io/my-project/python
+#   CANDIDATE:
+#     A unique suffix to apply to all docker image names
+#     Example: 20170102T030405
+#   BUILDER_SPEC_DIR:
+#     Bucket to copy python-$CANDIDATE.yaml to
+#     Example: gs://my-project/
+
 timeout: 7200s
 steps:
+# Build non-Debian interpreter(s)
 - name: gcr.io/cloud-builders/docker
-  args: ['build', '--tag=interpreter', '--no-cache', '/workspace/python-interpreter-builder/']
-- name: interpreter
-  args: ['cp', '/interpreters.tar.gz', '/workspace/runtime-image/interpreters.tar.gz']
+  args: [
+    'build',
+    '--tag=${DOCKER_NAMESPACE}/interpreter:${CANDIDATE}',
+    '--no-cache', '--pull',
+    '/workspace/python-interpreter-builder/'
+    ]
+- name: ${DOCKER_NAMESPACE}/interpreter:${CANDIDATE}
+  # TODO Make this part of python-interpreter step
+  args: [
+    'cp',
+    '/interpreters.tar.gz',
+    '/workspace/runtime-image/interpreters.tar.gz'
+    ]
+# Build base runtime image
 - name: gcr.io/cloud-builders/docker
-  args: ['build', '--tag=${IMAGE_NAME}', '--no-cache', '/workspace/runtime-image/']
+  args: [
+    'build',
+    '--tag=${DOCKER_NAMESPACE}:${CANDIDATE}',
+    '--no-cache', '--pull',
+    '/workspace/runtime-image/'
+    ]
+# Build flex builder image
+- name: gcr.io/cloud-builders/docker
+  args: [
+    'build',
+    '--tag=${DOCKER_NAMESPACE}/builder/gen-dockerfile:${CANDIDATE}',
+    '--no-cache', '--pull',
+    '/workspace/build-pipeline/gen-dockerfile'
+    ]
+# Test structure of runtime image
 - name: gcr.io/gcp-runtimes/structure_test
   args: [
     '-i', '${IMAGE_NAME}',
@@ -17,8 +70,24 @@ steps:
     '--config', '/workspace/tests/python3-libraries/python3-libraries.yaml',
     '--config', '/workspace/tests/license-test/license-test.yaml',
     '-v'
-  ]
+    ]
+# Run Client library unit tests inside runtime image
 - name: gcr.io/cloud-builders/docker
-  args: ['build', '--tag=google-cloud-python-tests', '--no-cache', '/workspace/tests/google-cloud-python/']
-images:
-  ['${IMAGE_NAME}']
+  args: [
+    'build',
+    '--tag=${DOCKER_NAMESPACE}/tests/google-cloud-python:${CANDIDATE}',
+    '--no-cache', '--pull',
+    '/workspace/tests/google-cloud-python/'
+    ]
+# Copy flex builder config only if all tests pass
+- name: gcr.io/cloud-builders/gsutil
+  args: [
+    'cp',
+    '/workspace/build-pipeline/python.yaml',
+    '${BUILDER_SPEC_DIR}/python-${CANDIDATE}.yaml'
+    ]
+images: [
+  # Don't push test images
+  '${DOCKER_NAMESPACE}/builder/gen-dockerfile:${CANDIDATE}',
+  '${DOCKER_NAMESPACE}/builder/gen-dockerfile:${CANDIDATE}',
+  ]

@@ -30,52 +30,6 @@ import yaml
 import local_cloudbuild
 
 
-class ValidationUtilsTest(unittest.TestCase):
-
-    def test_get_field_value(self):
-        valid_cases = (
-            # Normal case, field present and correct type
-            ({ 'present': 1 }, 'present', int, 1),
-            ({ 'present': '1' }, 'present', str, '1'),
-            ({ 'present': [1] }, 'present', list, [1]),
-            ({ 'present': {1: 2} }, 'present', dict, {1: 2}),
-            # Missing field replaced by default
-            ({}, 'missing', str, ''),
-            # Valid conversions
-            ({ 'str_to_int': '1' }, 'str_to_int', int, 1),
-            ({ 'int_to_str': 1 }, 'int_to_str', str, '1'),
-        )
-        for valid_case in valid_cases:
-            with self.subTest(valid_case=valid_case):
-                container, field_name, field_type, expected = valid_case
-                self.assertEqual(
-                    local_cloudbuild.get_field_value(
-                        container, field_name, field_type),
-                    expected)
-
-        invalid_cases = (
-            # Type conversion failures
-            ({ 'bad_list_to_dict': [1] }, 'bad_list_to_dict', dict),
-            ({ 'bad_list_to_str': [1] }, 'bad_list_to_str', str),
-            ({ 'bad_dict_to_list': {1: 2} }, 'bad_dict_to_list', list),
-            ({ 'bad_str_to_int': 'not_an_int' }, 'bad_str_to_int', int),
-            ({ 'bad_str_to_list': 'abc' }, 'bad_str_to_list', list),
-        )
-        for invalid_case in invalid_cases:
-            with self.subTest(invalid_case=invalid_case):
-                container, field_name, field_type = invalid_case
-                with self.assertRaises(ValueError):
-                    local_cloudbuild.get_field_value(
-                        container, field_name, field_type)
-
-    def test_validate_arg_regex(self):
-        self.assertEqual(
-            local_cloudbuild.validate_arg_regex('abc', re.compile('a[b]c')),
-            'abc')
-        with self.assertRaises(argparse.ArgumentTypeError):
-            local_cloudbuild.validate_arg_regex('abc', re.compile('a[d]c'))
-
-
 class LocalCloudbuildTest(unittest.TestCase):
 
     def setUp(self):

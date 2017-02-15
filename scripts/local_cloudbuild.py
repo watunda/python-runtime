@@ -29,7 +29,6 @@ for more information.
 
 import argparse
 import collections
-import collections.abc
 import functools
 import io
 import os
@@ -40,6 +39,7 @@ import sys
 
 import yaml
 
+import validation_utils
 
 # Exclude non-printable control characters (including newlines)
 PRINTABLE_REGEX = re.compile(r"""^[^\x00-\x1f]*$""")
@@ -83,52 +83,6 @@ CloudBuild = collections.namedtuple('CloudBuild', 'output_script run steps')
 Step = collections.namedtuple('Step', 'args dir_ env name')
 
 
-def get_field_value(container, field_name, field_type):
-    """Fetch a field from a container with typechecking and default values.
-
-    The field value is coerced to the desired type.  If the field is
-    not present, a instance of `field_type` is constructed with no
-    arguments and used as the default value.
-
-    Args:
-        container (dict): Object decoded from yaml
-        field_name (str): Field that should be present in `container`
-        field_type (type): Expected type for field value
-
-    Returns:
-        Any: Fetched or default value of field
-
-    Raises:
-        ValueError: if field value cannot be converted to the desired type
-    """
-    try:
-        value = container[field_name]
-    except (IndexError, KeyError):
-        return field_type()
-
-    msg = 'Expected "{}" field to be of type "{}", but found type "{}"'
-    if not isinstance(value, field_type):
-        # list('some string') is a successful type cast as far as Python
-        # is concerned, but doesn't exactly produce the results we want.
-        # We have a whitelist of conversions we will attempt.
-        whitelist = (
-            (float, str),
-            (int, str),
-            (str, float),
-            (str, int),
-            (int, float),
-            )
-        if (type(value), field_type) not in whitelist:
-            raise ValueError(msg.format(field_name, field_type, type(value)))
-
-    try:
-        value = field_type(value)
-    except ValueError as e:
-        e.message = msg.format(field_name, field_type, type(value))
-        raise
-    return value
-
-
 def get_cloudbuild(raw_config, args):
     """Read and validate a cloudbuild recipe
 
@@ -144,7 +98,7 @@ def get_cloudbuild(raw_config, args):
             'Expected {} contents to be of type "dict", but found type "{}"'.
             format(args.config, type(raw_config)))
 
-    raw_steps = get_field_value(raw_config, 'steps', list)
+    raw_steps = validation_utils.get_field_value(raw_config, 'steps', list)
     if not raw_steps:
         raise ValueError('No steps defined in {}'.format(args.config))
 
@@ -169,14 +123,14 @@ def get_step(raw_step):
         raise ValueError(
             'Expected step to be of type "dict", but found type "{}"'.
             format(type(raw_step)))
-    raw_args = get_field_value(raw_step, 'args', list)
-    args = [get_field_value(raw_args, index, str)
+    raw_args = validation_utils.get_field_value(raw_step, 'args', list)
+    args = [validation_utils.get_field_value(raw_args, index, str)
             for index in range(len(raw_args))]
-    dir_ = get_field_value(raw_step, 'dir', str)
-    raw_env = get_field_value(raw_step, 'env', list)
-    env = [get_field_value(raw_env, index, str)
+    dir_ = validation_utils.get_field_value(raw_step, 'dir', str)
+    raw_env = validation_utils.get_field_value(raw_step, 'env', list)
+    env = [validation_utils.get_field_value(raw_env, index, str)
            for index in range(len(raw_env))]
-    name = get_field_value(raw_step, 'name', str)
+    name = validation_utils.get_field_value(raw_step, 'name', str)
     return Step(
         args=args,
         dir_=dir_,
@@ -277,15 +231,6 @@ def local_cloudbuild(args):
         subprocess.check_call(args)
 
 
-def validate_arg_regex(flag_value, flag_regex):
-    """Check a named command line flag against a regular expression"""
-    if not re.match(flag_regex, flag_value):
-        raise argparse.ArgumentTypeError(
-            'Value "{}" does not match pattern "{}"'.format(
-                flag_value, flag_regex.pattern))
-    return flag_value
-
-
 def parse_args(argv):
     """Parse and validate command line flags"""
     parser = argparse.ArgumentParser(
@@ -293,14 +238,14 @@ def parse_args(argv):
     parser.add_argument(
         '--config',
         type=functools.partial(
-            validate_arg_regex, flag_regex=PRINTABLE_REGEX),
+            validation_utils.validate_arg_regex, flag_regex=PRINTABLE_REGEX),
         default='cloudbuild.yaml',
         help='Path to cloudbuild.yaml file'
     )
     parser.add_argument(
         '--output_script',
         type=functools.partial(
-            validate_arg_regex, flag_regex=PRINTABLE_REGEX),
+            validation_utils.validate_arg_regex, flag_regex=PRINTABLE_REGEX),
         help='Filename to write shell script to',
     )
     parser.add_argument(
