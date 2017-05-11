@@ -7,37 +7,25 @@ repository.
 
 ### Environment variables for `build.sh`
 
-DOCKER_NAMESPACE
+`DOCKER_NAMESPACE`
 : The prefix applied to all images names created.  To push images to Google
 Container Registry (GCR), this should be `gcr.io/YOUR-PROJECT-NAME`.
 
-TAG
+`TAG`
 : The suffix applied to all images created.  This should be unique.  If not
 specified, the current time will be used (timestamp format `YYYY-mm-dd-HHMMSS`).
 
-GOOGLE_APPLICATION_CREDENTIALS_FOR_TESTS
+`GOOGLE_APPLICATION_CREDENTIALS_FOR_TESTS`
 : (System test only) Path to service account credentials in JSON format.
 
-GOOGLE_CLOUD_PROJECT_FOR_TESTS
+`GOOGLE_CLOUD_PROJECT_FOR_TESTS`
 : (System test only) Name of the Google Cloud Platform project to run the system
 tests under.
   
 ## Building and Releasing
 
 A custom Jenkins job builds and releases this repository using scripts and job
-configurations that are not yet available publicly.  The control flow is as
-follows:
-
-1. Jenkins job `python/release` is invoked by
-  a. Manually running the script `build_and_release.py` with arguments
-  b. Manually invoking the job from the GUI
-2. The job runs the script `release.sh`
-  a. Service account credentials are read
-  b. `gcloud auth activate-service-account` is performed
-  c. `gcloud config set project` is performed
-3. The script invokes `build.sh` in this repository
-4. `build.sh` invokes Google Container Builder with the `cloudbuild-*.yaml`
-   config files.
+configurations that are not yet available publicly.
 
 ## Building outside Jenkins
 
@@ -72,13 +60,13 @@ docker run -it --entrypoint /bin/bash YOUR-IMAGE-NAME
 There is a benchmark suite which compares the performance of interpreters
 against each other.
 
-**Benchmark different versions of interpreter in the same release
+### Benchmark different versions of interpreter in the same release
 
 ``` shell
 DOCKER_NAMESPACE=DOCKER_NAMESPACE_EXAMPLE TAG=TAG_EXAMPLE ./build.sh --nobuild --benchmark
 ```
 
-**Benchmark same versions of interpreter from release to release
+### Benchmark same versions of interpreter from release to release
 
 ``` shell
 DOCKER_NAMESPACE=DOCKER_NAMESPACE_EXAMPLE TAG1=TAG1_EXAMPLE TAG2=TAG2_EXAMPLE ./benchmark_between_releases.sh
